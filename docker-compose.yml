@@ -1,0 +1,32 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pass
+      POSTGRES_DB: baseclientdb
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  base_client:
+    build: ./base_client
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgresql+psycopg2://user:pass@db:5432/baseclientdb
+      TELEGRAM_TOKEN: 8298831582:AAEYIBuVVmKQBtYUWwaZ2PkH2dEd1kJ00XQ
+    ports:
+      - "8000:8000"
+
+  client:
+    build: ./client
+    ports:
+      - "8001:8001"
+
+volumes:
+  pgdata:
