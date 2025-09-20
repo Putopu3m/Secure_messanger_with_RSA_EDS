@@ -38,6 +38,6 @@ async def register(
     db_session.commit()
 
     # Отправка кода в телеграм
-    asyncio.create_task(telegram_bot.send_tg_code(new_user.telegram_username, tg_code))
+    #asyncio.create_task(telegram_bot.send_tg_code(new_user.telegram_username, tg_code))
 
     return {"status": "ok", "message": "User registered, code sent to Telegram"}

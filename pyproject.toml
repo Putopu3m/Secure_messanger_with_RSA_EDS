@@ -8,6 +8,7 @@ dependencies = [
     "aiogram>=3.22.0",
     "cryptography>=46.0.1",
     "fastapi>=0.116.2",
+    "flet[all]==0.28.3",
     "passlib[bcrypt]>=1.7.4",
     "psycopg2-binary>=2.9.10",
     "python-dotenv>=1.1.1",
