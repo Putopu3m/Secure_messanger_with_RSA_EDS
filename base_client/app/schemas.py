@@ -10,3 +10,12 @@ class RegisterRequest(BaseModel):
 class RegisterResponse(BaseModel):
     status: str
     message: str
+
+
+class AuthRequest(BaseModel):
+    username: str
+    response_hash: str
+
+
+class ChallengeRequest(BaseModel):
+    username: str

@@ -8,6 +8,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True, nullable=False)
     password_bcrypt = Column(String, nullable=False)
+    password_sha256 = Column(String, nullable=False)
     telegram_username = Column(String, nullable=True)
     tg_code_hash = Column(String, nullable=True)
 
