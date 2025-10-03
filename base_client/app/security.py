@@ -1,9 +1,12 @@
 import hashlib
 import secrets
+from datetime import datetime, timedelta, timezone
 
 from passlib.context import CryptContext
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+CODE_TTL = 120  # 2 minutes
 
 
 def hash_password_bcrypt(password: str) -> str:
@@ -23,4 +26,8 @@ def hash_code_sha256(code: str) -> str:
 
 
 def generate_tg_code() -> str:
-    return str(secrets.randbelow(900000) + 100000)  # 6-значный код
+    return secrets.token_hex(3)
+
+
+def is_code_expired(created_at: datetime) -> bool:
+    return datetime.now(timezone.utc) > created_at + timedelta(seconds=CODE_TTL)

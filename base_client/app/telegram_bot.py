@@ -1,53 +1,74 @@
 import os
-
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
-from dotenv import load_dotenv
 from sqlalchemy.orm import Session
+import asyncio
 
-from . import db
-from .models import TelegramUser
+from .models import TelegramCode, User
+from .db import SessionLocal
+from .security import generate_tg_code, hash_code_sha256
+from dotenv import load_dotenv
 
 load_dotenv()
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-bot = Bot(token=TELEGRAM_TOKEN)
+BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
+bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
 
 @dp.message(Command("start"))
-async def register_user(message: types.Message, db: Session = next(db.get_db())):
-    username = message.from_user.username
-    chat_id = message.chat.id
+async def start(message: types.Message):
+    username = message.from_user.username  # "alice"
+    chat_id = message.chat.id              # 123456789
+
     if not username:
-        await message.answer("У вас нет username в Telegram. Задайте его в настройках.")
+        await message.answer("У вас не установлен username в Telegram, задайте его в настройках.")
         return
 
-    tg_user = db.query(TelegramUser).filter_by(telegram_username=username).first()
-    if tg_user:
-        tg_user.chat_id = str(chat_id)
+    # сохраняем в БД
+    db: Session = SessionLocal()
+    user = db.query(User).filter_by(telegram_username=username).first()
+    if user:
+        user.chat_id = chat_id
+        db.commit()
+        await message.answer("Ваш аккаунт привязан, теперь бот может отправлять вам коды.")
     else:
-        tg_user = TelegramUser(telegram_username=username, chat_id=str(chat_id))
-        db.add(tg_user)
-    db.commit()
-
-    await message.answer(f"Привет, @{username}! Я запомнил твой chat_id.")
+        await message.answer("Пользователь с таким username не зарегистрирован.")
+    db.close()
 
 
-async def send_tg_code(
-    telegram_username: str, code: str, db: Session = next(db.get_db())
-):
-    tg_user = (
-        db.query(TelegramUser).filter_by(telegram_username=telegram_username).first()
-    )
-    if not tg_user:
-        raise ValueError(f"Пользователь @{telegram_username} не зарегистрирован у бота")
-    await bot.send_message(int(tg_user.chat_id), f"Ваш код для аутентификации: {code}")
+async def send_code(username: str):
+    db: Session = SessionLocal()
+    try:
+        user = db.query(User).filter_by(telegram_username=username).first()
+        if not user:
+            raise ValueError(f"User {username} not found")
+
+        code = generate_tg_code()
+        code_hash = hash_code_sha256(code)
+
+        if user.tg_code:
+            db.delete(user.tg_code)
+            db.commit()
+
+        # создаём запись в БД
+        tg_code = TelegramCode(code=code_hash, user=user)
+        db.add(tg_code)
+        db.commit()
+        db.refresh(tg_code)
+        
+        await bot.send_message(
+            chat_id=user.chat_id,
+            text=f"Ваш код для входа: {code}\nОн будет действителен 2 минуты."
+        )
+
+        return tg_code
+    finally:
+        db.close()
 
 
-def main():
-    dp.start_polling(bot)
-
+async def main():
+    await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

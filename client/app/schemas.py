@@ -1,6 +1,10 @@
 from pydantic import BaseModel
 
 
-class LoginRequest(BaseModel):
+class ChallengeRequest(BaseModel):
     username: str
+    
+
+class LoginRequest(ChallengeRequest):
     password: str
+    tg_code: str | None = None
