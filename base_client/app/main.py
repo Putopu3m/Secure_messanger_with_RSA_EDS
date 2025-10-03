@@ -1,5 +1,4 @@
 import secrets
-import asyncio
 
 from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.orm import Session
@@ -67,8 +66,10 @@ async def authenticate(
     # Если challenge или код не найдены, возвращаем ошибку
     if not challenge or not tg_code:
         print("Нет challenge или кода")
-        raise HTTPException(status_code=400, detail="No challenge or Telegram code found for user")
-    
+        raise HTTPException(
+            status_code=400, detail="No challenge or Telegram code found for user"
+        )
+
     # Проверка истечения срока действия кода
     if security.is_code_expired(tg_code.created_at):
         print("Код истёк")
@@ -78,7 +79,9 @@ async def authenticate(
     challenge_hash = security.hash_code_sha256(challenge)
 
     # Проверка ответа клиента
-    expected_response = security.hash_code_sha256(user.password_sha256 + challenge_hash + tg_code.code)
+    expected_response = security.hash_code_sha256(
+        user.password_sha256 + challenge_hash + tg_code.code
+    )
 
     # Если хеши не совпадают, возвращаем ошибку
     if expected_response != auth_request.response_hash:

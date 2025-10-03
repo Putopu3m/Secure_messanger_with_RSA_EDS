@@ -37,21 +37,20 @@ async def create_challenge(challenge_request: schemas.ChallengeRequest):
 async def authenticate(login_request: schemas.LoginRequest):
     if login_request.username not in session_data:
         raise HTTPException(status_code=400, detail="No active challenge")
-    
+
     challenge_hash = session_data.pop(login_request.username)
     password_sha256 = hashlib.sha256(login_request.password.encode()).hexdigest()
     code_sha256 = hashlib.sha256(login_request.tg_code.encode()).hexdigest()
 
-    response = hashlib.sha256((password_sha256 + challenge_hash + code_sha256).encode()).hexdigest()
+    response = hashlib.sha256(
+        (password_sha256 + challenge_hash + code_sha256).encode()
+    ).hexdigest()
 
     # Отправка ответа на challenge для аутентификации
     async with httpx.AsyncClient() as client:
         response = await client.post(
             f"{BASE_CLIENT_URL}/authenticate",
-            json={
-                "username": login_request.username,
-                "response_hash": response
-            },
+            json={"username": login_request.username, "response_hash": response},
         )
 
     # Если сервер вернул ошибку, пробрасываем её клиенту
