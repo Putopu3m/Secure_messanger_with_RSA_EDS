@@ -1,9 +1,12 @@
+import base64
 import secrets
 
 from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.orm import Session
 
-from . import db, models, schemas, security, telegram_bot
+from security import security
+
+from . import db, models, schemas, telegram_bot
 
 app = FastAPI()
 
@@ -11,6 +14,7 @@ models.Base.metadata.create_all(bind=db.engine)
 
 
 challenges = {}
+session_data = {}
 
 
 @app.post("/challenge")
@@ -18,32 +22,26 @@ async def challenge(
     challenge_request: schemas.ChallengeRequest,
     db_session: Session = Depends(db.get_db),
 ):
-    # Проверка существования пользователя
     user = (
         db_session.query(models.User)
         .filter_by(username=challenge_request.username)
         .first()
     )
 
-    # Если пользователь не найден, возвращаем ошибку
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Генерация и сохранение challenge
     challenge = secrets.token_hex(16)
-    print(f"Сгенерированное слово-вызов: {challenge}")
 
     if user.challenges:
         db_session.delete(user.challenges)
         db_session.commit()
-    
+
     db_challenge = models.Challenge(user_id=user.id, challenge=challenge)
     db_session.add(db_challenge)
     db_session.commit()
 
-
-    # Хеширование challenge для отправки клиенту
-    challenge_hash = security.hash_code_sha256(challenge)
+    challenge_hash = security.hash_sha256(challenge)
 
     await telegram_bot.send_code(user.telegram_username)
     return {"challenge_hash": challenge_hash}
@@ -53,17 +51,14 @@ async def challenge(
 async def authenticate(
     auth_request: schemas.AuthRequest, db_session: Session = Depends(db.get_db)
 ):
-    # Проверка существования пользователя
     user = (
         db_session.query(models.User).filter_by(username=auth_request.username).first()
     )
 
-    # Если пользователь не найден, возвращаем ошибку
     if not user:
         print("Пользователь не найден")
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Проверка наличия challenge
     challenge = (
         db_session.query(models.Challenge)
         .filter_by(user_id=user.id)
@@ -77,32 +72,26 @@ async def authenticate(
         .first()
     )
 
-    # Если challenge или код не найдены, возвращаем ошибку
     if not challenge or not tg_code:
         print("Нет challenge или кода")
         raise HTTPException(
             status_code=400, detail="No challenge or Telegram code found for user"
         )
 
-    # Проверка истечения срока действия кода
     if security.is_code_expired(challenge.created_at):
         print("Код истёк")
         raise HTTPException(status_code=400, detail="Telegram code has expired")
 
-    # Хеширование challenge для проверки
-    challenge_hash = security.hash_code_sha256(challenge.challenge)
+    challenge_hash = security.hash_sha256(challenge.challenge)
 
-    # Проверка ответа клиента
-    expected_response = security.hash_code_sha256(
+    expected_response = security.hash_sha256(
         user.password_sha256 + challenge_hash + tg_code.code
     )
 
-    # Если хеши не совпадают, возвращаем ошибку
     if expected_response != auth_request.response_hash:
         print("Хеши не совпадают")
         raise HTTPException(status_code=401, detail="Authentication failed")
 
-    # Удаляем challenge после успешной аутентификации
     db_session.delete(challenge)
     db_session.commit()
 
@@ -113,16 +102,13 @@ async def authenticate(
 async def register(
     user: schemas.RegisterRequest, db_session: Session = Depends(db.get_db)
 ):
-    # Проверка существования пользователя
     existing = db_session.query(models.User).filter_by(username=user.username).first()
     if existing:
         raise HTTPException(status_code=400, detail="User already exists")
 
-    # Хеширование пароля и генерация кода для Telegram
-    bcrypt_hash = security.hash_password_bcrypt(user.password)
-    sha256_hash = security.hash_password_sha256(user.password)
+    bcrypt_hash = security.hash_bcrypt(user.password)
+    sha256_hash = security.hash_sha256(user.password)
 
-    # Создание пользователя в базе данных
     new_user = models.User(
         username=user.username,
         password_bcrypt=bcrypt_hash,
@@ -133,3 +119,30 @@ async def register(
     db_session.commit()
 
     return {"status": "ok", "message": "User registered, code sent to Telegram"}
+
+
+@app.post("/dh/respond")
+async def dh_respond(request: schemas.DHInitiateRequest):
+    p = int(request.p)
+    g = int(request.g)
+    A = int(request.A)
+    signature = request.signature
+    client_pub = security.load_public_key(request.client_rsa_pub)
+
+    if not security.verify_signature(client_pub, f"{p}{g}{A}".encode(), signature):
+        raise HTTPException(status_code=400, detail="Invalid RSA signature")
+
+    b, B = security.generate_dh_keypair(p, g)
+    rsa_priv, rsa_pub = security.generate_rsa_keypair()
+
+    response_signature = security.sign_message(rsa_priv, f"{B}".encode())
+
+    shared_key = security.compute_shared_secret(A, b, p)
+    session_data["aes_key"] = base64.b64encode(shared_key).decode()
+    print("Общий AES ключ:", session_data["aes_key"])
+
+    return {
+        "B": str(B),
+        "signature": response_signature,
+        "server_rsa_pub": security.serialize_public_key(rsa_pub),
+    }

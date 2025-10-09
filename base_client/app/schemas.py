@@ -19,3 +19,11 @@ class AuthRequest(BaseModel):
 
 class ChallengeRequest(BaseModel):
     username: str
+
+
+class DHInitiateRequest(BaseModel):
+    p: str
+    g: str
+    A: str
+    signature: str
+    client_rsa_pub: str
