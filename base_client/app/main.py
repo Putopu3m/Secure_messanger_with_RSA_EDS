@@ -31,7 +31,16 @@ async def challenge(
 
     # Генерация и сохранение challenge
     challenge = secrets.token_hex(16)
-    challenges[challenge_request.username] = challenge
+    print(f"Сгенерированное слово-вызов: {challenge}")
+
+    if user.challenges:
+        db_session.delete(user.challenges)
+        db_session.commit()
+    
+    db_challenge = models.Challenge(user_id=user.id, challenge=challenge)
+    db_session.add(db_challenge)
+    db_session.commit()
+
 
     # Хеширование challenge для отправки клиенту
     challenge_hash = security.hash_code_sha256(challenge)
@@ -55,7 +64,12 @@ async def authenticate(
         raise HTTPException(status_code=404, detail="User not found")
 
     # Проверка наличия challenge
-    challenge = challenges.get(auth_request.username)
+    challenge = (
+        db_session.query(models.Challenge)
+        .filter_by(user_id=user.id)
+        .order_by(models.Challenge.created_at.desc())
+        .first()
+    )
     tg_code = (
         db_session.query(models.TelegramCode)
         .filter_by(user_id=user.id)
@@ -71,12 +85,12 @@ async def authenticate(
         )
 
     # Проверка истечения срока действия кода
-    if security.is_code_expired(tg_code.created_at):
+    if security.is_code_expired(challenge.created_at):
         print("Код истёк")
         raise HTTPException(status_code=400, detail="Telegram code has expired")
 
     # Хеширование challenge для проверки
-    challenge_hash = security.hash_code_sha256(challenge)
+    challenge_hash = security.hash_code_sha256(challenge.challenge)
 
     # Проверка ответа клиента
     expected_response = security.hash_code_sha256(
@@ -89,7 +103,8 @@ async def authenticate(
         raise HTTPException(status_code=401, detail="Authentication failed")
 
     # Удаляем challenge после успешной аутентификации
-    del challenges[auth_request.username]
+    db_session.delete(challenge)
+    db_session.commit()
 
     return {"status": "ok", "message": "Authenticated successfully"}
 

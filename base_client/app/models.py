@@ -13,6 +13,7 @@ class User(Base):
     telegram_username = Column(String, nullable=True)
     tg_code = relationship("TelegramCode", back_populates="user", uselist=False)
     chat_id = Column(BigInteger, nullable=True)
+    challenges = relationship("Challenge", back_populates="user", uselist=False)
 
 
 class TelegramCode(Base):
@@ -22,3 +23,12 @@ class TelegramCode(Base):
     code = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     user = relationship("User", back_populates="tg_code")
+
+
+class Challenge(Base):
+    __tablename__ = "challenges"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    challenge = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    user = relationship("User", back_populates="challenges")

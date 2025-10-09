@@ -13,7 +13,7 @@ from .security import generate_tg_code, hash_code_sha256
 load_dotenv()
 
 BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
-bot = Bot(token=BOT_TOKEN)
+bot = Bot(token=BOT_TOKEN, proxy='http://proxy.server:3128')
 dp = Dispatcher()
 
 
@@ -44,6 +44,7 @@ async def start(message: types.Message):
 
 async def send_code(username: str):
     db: Session = SessionLocal()
+
     try:
         # Получаем пользователя из БД
         user = db.query(User).filter_by(telegram_username=username).first()
