@@ -1,7 +1,7 @@
 import base64
 import secrets
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
 
 from security import security
@@ -13,7 +13,6 @@ app = FastAPI()
 models.Base.metadata.create_all(bind=db.engine)
 
 
-challenges = {}
 session_data = {}
 
 

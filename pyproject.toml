@@ -11,6 +11,7 @@ dependencies = [
     "flet[all]==0.28.3",
     "passlib[bcrypt]>=1.7.4",
     "psycopg2-binary>=2.9.10",
+    "pycryptodome>=3.23.0",
     "python-dotenv>=1.1.1",
     "ruff>=0.13.0",
     "sqlalchemy>=2.0.43",

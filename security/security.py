@@ -4,6 +4,8 @@ import os
 import secrets
 from datetime import datetime, timedelta, timezone
 
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad, unpad
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
@@ -12,6 +14,8 @@ from passlib.context import CryptContext
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 CODE_TTL = 120  # 2 minutes
+
+BLOCK_SIZE = 16  # 128 бит
 
 
 def hash_bcrypt(password: str) -> str:
@@ -110,4 +114,19 @@ def compute_shared_secret(peer_public: int, private: int, p: int) -> bytes:
     key = HKDF(algorithm=hashes.SHA256(), length=16, salt=None, info=b"AES key").derive(
         secret.to_bytes(256, "big")
     )
-    return key  # 128-bit AES key
+    return key
+
+
+def aes_encrypt(message: str, key: bytes) -> str:
+    iv = os.urandom(BLOCK_SIZE)
+    cipher = AES.new(key[:16], AES.MODE_CBC, iv)
+    ciphertext = cipher.encrypt(pad(message.encode(), BLOCK_SIZE))
+    return base64.b64encode(iv + ciphertext).decode()
+
+def aes_decrypt(encrypted_message: str, key: bytes) -> str:
+    raw = base64.b64decode(encrypted_message)
+    iv = raw[:BLOCK_SIZE]
+    ciphertext = raw[BLOCK_SIZE:]
+    cipher = AES.new(key[:16], AES.MODE_CBC, iv)
+    plaintext = unpad(cipher.decrypt(ciphertext), BLOCK_SIZE)
+    return plaintext.decode()

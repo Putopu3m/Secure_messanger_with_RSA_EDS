@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from .db import SessionLocal
 from .models import TelegramCode, User
-from .security import generate_tg_code, hash_code_sha256
+from security import security
 
 load_dotenv()
 
@@ -19,8 +19,8 @@ dp = Dispatcher()
 
 @dp.message(Command("start"))
 async def start(message: types.Message):
-    username = message.from_user.username  # "alice"
-    chat_id = message.chat.id  # 123456789
+    username = message.from_user.username
+    chat_id = message.chat.id
 
     if not username:
         await message.answer(
@@ -54,8 +54,8 @@ async def send_code(username: str):
             raise ValueError(f"User {username} not found")
 
         # Генерируем код и его хеш
-        code = generate_tg_code()
-        code_hash = hash_code_sha256(code)
+        code = security.generate_tg_code()
+        code_hash = security.hash_sha256(code)
 
         # Удаляем старый код, если он есть
         if user.tg_code:
