@@ -123,6 +123,7 @@ def aes_encrypt(message: str, key: bytes) -> str:
     ciphertext = cipher.encrypt(pad(message.encode(), BLOCK_SIZE))
     return base64.b64encode(iv + ciphertext).decode()
 
+
 def aes_decrypt(encrypted_message: str, key: bytes) -> str:
     raw = base64.b64decode(encrypted_message)
     iv = raw[:BLOCK_SIZE]

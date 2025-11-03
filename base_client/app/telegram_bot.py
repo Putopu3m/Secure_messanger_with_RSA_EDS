@@ -6,9 +6,10 @@ from aiogram.filters import Command
 from dotenv import load_dotenv
 from sqlalchemy.orm import Session
 
+from security import security
+
 from .db import SessionLocal
 from .models import TelegramCode, User
-from security import security
 
 load_dotenv()
 
