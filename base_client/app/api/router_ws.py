@@ -3,7 +3,6 @@ from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 
 import base_client.app.api.router_api as router_api
 import base_client.app.db
-import base_client.app.models
 import base_client.app.services
 from security import security
 
@@ -17,10 +16,6 @@ async def websocket_endpoint(
     user_id: int,
     db: sqlalchemy.orm.Session = Depends(base_client.app.db.get_db),
 ):
-    """
-    If user_id == 0 -> admin socket (admin GUI connects here).
-    Else -> user socket (client GUI connects here).
-    """
     if user_id == 0:
         await manager.connect_admin(websocket)
         try:
@@ -48,5 +43,4 @@ async def websocket_endpoint(
             await manager.broadcast_message_from_user_to_admins(user_id, plaintext)
 
     except WebSocketDisconnect:
-        # user disconnected
         await manager.disconnect_user(user_id)
