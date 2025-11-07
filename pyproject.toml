@@ -17,6 +17,7 @@ dependencies = [
     "ruff>=0.13.0",
     "sqlalchemy>=2.0.43",
     "uvicorn>=0.35.0",
+    "websocket-client[optional]>=1.9.0",
     "websockets>=15.0.1",
 ]
 

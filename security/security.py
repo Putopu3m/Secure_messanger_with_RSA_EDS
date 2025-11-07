@@ -117,17 +117,59 @@ def compute_shared_secret(peer_public: int, private: int, p: int) -> bytes:
     return key
 
 
-def aes_encrypt(message: str, key: bytes) -> str:
+def _normalize_key(key):
+    """
+    Accept key as:
+     - bytes (raw 16+ bytes)
+     - base64-encoded str (will be decoded)
+     - plain str of bytes (will be encoded utf-8) - not recommended
+    Returns bytes (at least 16 bytes).
+    """
+    if key is None:
+        return None
+    if isinstance(key, bytes):
+        kb = key
+    elif isinstance(key, str):
+        # try base64 decode first
+        try:
+            kb = base64.b64decode(key)
+        except Exception:
+            # fallback: treat as utf-8 string
+            kb = key.encode("utf-8")
+    else:
+        # unexpected type
+        raise TypeError("Key must be bytes or base64 string")
+
+    if len(kb) < 16:
+        raise ValueError("Key too short (need at least 16 bytes)")
+    return kb[:16]
+
+
+def aes_encrypt(message: str, key) -> str:
+    """
+    Encrypt message (utf-8) with AES-128-CBC.
+    key: bytes or base64-string.
+    Returns base64(iv + ciphertext) as str.
+    """
+    kb = _normalize_key(key)
     iv = os.urandom(BLOCK_SIZE)
-    cipher = AES.new(key[:16], AES.MODE_CBC, iv)
-    ciphertext = cipher.encrypt(pad(message.encode(), BLOCK_SIZE))
-    return base64.b64encode(iv + ciphertext).decode()
+    cipher = AES.new(kb, AES.MODE_CBC, iv)
+    ciphertext = cipher.encrypt(pad(message.encode("utf-8"), BLOCK_SIZE))
+    return base64.b64encode(iv + ciphertext).decode("utf-8")
 
 
-def aes_decrypt(encrypted_message: str, key: bytes) -> str:
-    raw = base64.b64decode(encrypted_message)
+def aes_decrypt(enc_b64: str, key) -> str:
+    """
+    Decrypt base64(iv + ciphertext) and return plaintext string.
+    key: bytes or base64-string.
+    """
+    kb = _normalize_key(key)
+    # enc_b64 must be a base64 string
+    if not isinstance(enc_b64, str):
+        raise TypeError("Encrypted message must be base64 string")
+    raw = base64.b64decode(enc_b64)
     iv = raw[:BLOCK_SIZE]
-    ciphertext = raw[BLOCK_SIZE:]
-    cipher = AES.new(key[:16], AES.MODE_CBC, iv)
-    plaintext = unpad(cipher.decrypt(ciphertext), BLOCK_SIZE)
-    return plaintext.decode()
+    ct = raw[BLOCK_SIZE:]
+    cipher = AES.new(kb, AES.MODE_CBC, iv)
+    pt = unpad(cipher.decrypt(ct), BLOCK_SIZE)
+    return pt.decode("utf-8")

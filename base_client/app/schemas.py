@@ -27,3 +27,8 @@ class DHInitiateRequest(BaseModel):
     A: str
     signature: str
     client_rsa_pub: str
+
+
+class SendMessage(BaseModel):
+    user_id: str
+    text: str

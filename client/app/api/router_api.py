@@ -50,6 +50,7 @@ async def authenticate(login_request: client.app.schemas.LoginRequest):
         )
 
     if response.status_code == 200:
+        user_id = response.json().get("user_id")
         p, g = security.generate_dh_params()
         a, A = security.generate_dh_keypair(p, g)
         rsa_priv, rsa_pub = security.generate_rsa_keypair()
@@ -87,4 +88,8 @@ async def authenticate(login_request: client.app.schemas.LoginRequest):
     else:
         raise HTTPException(status_code=response.status_code, detail=response.text)
 
-    return {"message": "DH successful", "shared_key": session_data["aes_key"]}
+    return {
+        "message": "DH successful",
+        "shared_key": session_data["aes_key"],
+        "user_id": user_id,
+    }

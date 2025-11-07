@@ -1,41 +1,76 @@
-import base64
+import json
+from typing import Dict, Set
 
 from fastapi import WebSocket
 
 
 class ConnectionManager:
     def __init__(self):
-        self.active_connections: dict[int, dict[int, WebSocket]] = {}
+        # admin sockets (user_id == 0 connects here)
+        self.admin_connections: Set[WebSocket] = set()
+        # user sockets: user_id (int) -> WebSocket
+        self.user_connections: Dict[int, WebSocket] = {}
 
-    async def connect(self, websocket: WebSocket, room_id: int, user_id: int):
+    # --------------- connects / disconnects ---------------
+    async def connect_admin(self, websocket: WebSocket):
         await websocket.accept()
-        if room_id not in self.active_connections:
-            self.active_connections[room_id] = {}
-        self.active_connections[room_id][user_id] = websocket
+        self.admin_connections.add(websocket)
+        # send current users list
+        await self.send_users_list_to_admins()
 
-    async def disconnect(self, websocket: WebSocket, room_id: int, user_id: int):
-        await websocket.close()
-        if room_id in self.active_connections:
-            self.active_connections[room_id].pop(user_id, None)
-            if not self.active_connections[room_id]:
-                self.active_connections.pop(room_id)
+    async def disconnect_admin(self, websocket: WebSocket):
+        self.admin_connections.discard(websocket)
+        try:
+            await websocket.close()
+        except Exception:
+            pass
 
-    async def broadcast(self, message: str, room_id: int, sender_id: int):
-        if room_id in self.active_connections:
-            for user_id, connection in self.active_connections[room_id].items():
-                message_with_class = {"text": message, "is_self": user_id == sender_id}
+    async def connect_user(self, websocket: WebSocket, user_id: int):
+        await websocket.accept()
+        self.user_connections[user_id] = websocket
+        # notify admins
+        await self.broadcast_to_admins(
+            {"type": "user_joined", "username": str(user_id)}
+        )
+        await self.send_users_list_to_admins()
 
-                await connection.send_json(message_with_class)
+    async def disconnect_user(self, user_id: int):
+        ws = self.user_connections.pop(user_id, None)
+        if ws:
+            try:
+                await ws.close()
+            except Exception:
+                pass
+        # notify admins
+        await self.broadcast_to_admins({"type": "user_left", "username": str(user_id)})
+        await self.send_users_list_to_admins()
 
+    # --------------- broadcasting helpers ---------------
+    async def broadcast_to_admins(self, obj: dict):
+        # send JSON to all admin connections
+        remove = []
+        text = json.dumps(obj)
+        for a in list(self.admin_connections):
+            try:
+                await a.send_text(text)
+            except Exception:
+                remove.append(a)
+        for a in remove:
+            self.admin_connections.discard(a)
 
-def get_aes_key_bytes(session_data: dict[str, str]):
-    b64 = session_data.get("aes_key")
-    if not b64:
-        return None
-    try:
-        key = base64.b64decode(b64)
-        if len(key) < 16:
-            return None
-        return key[:16]
-    except Exception:
-        return None
+    async def send_users_list_to_admins(self):
+        users = [str(uid) for uid in self.user_connections.keys()]
+        await self.broadcast_to_admins({"type": "users_list", "users": users})
+
+    async def broadcast_message_from_user_to_admins(self, user_id: int, plaintext: str):
+        await self.broadcast_to_admins(
+            {"type": "message", "from": str(user_id), "text": plaintext}
+        )
+
+    # expose send-to-user so other code (e.g. /send_to_user endpoint) can call:
+    async def send_encrypted_to_user(self, user_id: int, encrypted_b64: str):
+        ws = self.user_connections.get(user_id)
+        if not ws:
+            raise RuntimeError("User not connected")
+        # send the encrypted base64 string verbatim to the user websocket (text frame)
+        await ws.send_text(encrypted_b64)

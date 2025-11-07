@@ -4,6 +4,7 @@ import secrets
 import sqlalchemy.orm
 from fastapi import APIRouter, Depends, HTTPException
 
+import base_client.app.api.router_ws as router_ws
 import base_client.app.db
 import base_client.app.models
 import base_client.app.schemas
@@ -101,7 +102,7 @@ async def authenticate(
     db_session.delete(challenge)
     db_session.commit()
 
-    return {"status": "ok", "message": "Authenticated successfully"}
+    return {"status": "ok", "message": "Authenticated successfully", "user_id": user.id}
 
 
 @router.post("/register", response_model=base_client.app.schemas.RegisterResponse)
@@ -157,3 +158,24 @@ async def dh_respond(request: base_client.app.schemas.DHInitiateRequest):
         "signature": response_signature,
         "server_rsa_pub": security.serialize_public_key(rsa_pub),
     }
+
+
+@router.post("/send_to_user")
+async def send_to_user(request: base_client.app.schemas.SendMessage):
+    try:
+        user_id = int(request.user_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid user ID")
+
+    key = session_data["aes_key"]
+    if not key:
+        raise HTTPException(status_code=404, detail="AES key not found")
+
+    encrypted = security.aes_encrypt(request.text, key)
+
+    try:
+        await router_ws.manager.send_encrypted_to_user(user_id, encrypted)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    return {"status": "ok"}
