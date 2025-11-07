@@ -1,11 +1,11 @@
 import asyncio
 import base64
+import json
 import os
 import sys
 import threading
 import tkinter as tk
 from tkinter import messagebox, scrolledtext, ttk
-import json
 
 import httpx
 import websockets
@@ -40,9 +40,7 @@ class ClientGUI:
         self.tabs.add(self.tab_chat, text="Chat")
         self.tabs.grid(row=0, column=0)
 
-        ttk.Label(self.tab_auth, text="Username").grid(
-            row=0, column=0, sticky="w"
-        )
+        ttk.Label(self.tab_auth, text="Username").grid(row=0, column=0, sticky="w")
         self.username_entry = ttk.Entry(self.tab_auth)
         self.username_entry.grid(row=0, column=1, sticky="we")
 
@@ -198,7 +196,9 @@ class ClientGUI:
                         data = json.loads(plaintext)
                         sender = data.get("sender", "admin")
                         text = data.get("text", plaintext)
-                        self.append_chat("me" if str(sender) == str(self.user_id) else sender, text)
+                        self.append_chat(
+                            "me" if str(sender) == str(self.user_id) else sender, text
+                        )
                     except Exception as e:
                         self.log(f"decrypt error: {e}")
         except Exception as e:

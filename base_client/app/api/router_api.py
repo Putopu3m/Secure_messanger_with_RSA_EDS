@@ -172,7 +172,9 @@ async def send_to_user(request: base_client.app.schemas.SendMessage):
         raise HTTPException(status_code=404, detail="AES key not found")
 
     try:
-        await router_ws.manager.broadcast_message_from_admin_to_user(user_id, request.text, key)
+        await router_ws.manager.broadcast_message_from_admin_to_user(
+            user_id, request.text, key
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

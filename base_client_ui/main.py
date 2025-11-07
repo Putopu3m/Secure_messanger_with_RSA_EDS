@@ -1,4 +1,3 @@
-# admin_gui.py
 import asyncio
 import json
 import os
@@ -184,7 +183,9 @@ class ChatWindow:
                         json={"user_id": self.username, "text": text},
                     )
                     if r.status_code == 200:
-                        self.parent.chat_histories.setdefault(self.username, []).append(("admin", text))
+                        self.parent.chat_histories.setdefault(self.username, []).append(
+                            ("admin", text)
+                        )
                         self.append_message("admin", text)
                         self.entry.delete(0, tk.END)
                     else:

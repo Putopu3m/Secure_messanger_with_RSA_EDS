@@ -75,7 +75,7 @@ class ConnectionManager:
                 data = {
                     "sender": msg.sender,
                     "text": msg.content,
-                    "timestamp": msg.created_at.isoformat()
+                    "timestamp": msg.created_at.isoformat(),
                 }
                 enc = security.aes_encrypt(json.dumps(data), key)
                 await websocket.send_text(enc)
@@ -112,7 +112,9 @@ class ConnectionManager:
             {"type": "message", "from": str(user_id), "text": plaintext}
         )
 
-    async def broadcast_message_from_admin_to_user(self, user_id: int, plaintext: str, key):
+    async def broadcast_message_from_admin_to_user(
+        self, user_id: int, plaintext: str, key
+    ):
         self.save_message(user_id, "admin", plaintext)
 
         if key:
