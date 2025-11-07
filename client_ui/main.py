@@ -12,8 +12,8 @@ import websockets
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from security.security import aes_decrypt, aes_encrypt
 
-CLIENT_SERVER = "http://localhost:8001"  # client backend
-BASE_WS_USER = "ws://localhost:8000/ws"  # connect as /ws/{user_id}
+CLIENT_SERVER = "http://localhost:8001"
+BASE_WS_USER = "ws://localhost:8000/ws"
 
 
 class ClientGUI:
@@ -21,7 +21,7 @@ class ClientGUI:
         self.root = tk.Tk()
         self.root.title("Client GUI")
         self.shared_key_b64 = None
-        self.shared_key = None  # bytes
+        self.shared_key = None
         self.ws = None
         self.ws_loop = None
 
@@ -31,7 +31,6 @@ class ClientGUI:
         frame = ttk.Frame(self.root, padding=10)
         frame.grid(row=0, column=0)
 
-        # Tabs
         self.tabs = ttk.Notebook(frame)
         self.tab_auth = ttk.Frame(self.tabs)
         self.tab_chat = ttk.Frame(self.tabs)
@@ -39,7 +38,6 @@ class ClientGUI:
         self.tabs.add(self.tab_chat, text="Chat")
         self.tabs.grid(row=0, column=0)
 
-        # Auth tab
         ttk.Label(self.tab_auth, text="User ID (numeric)").grid(
             row=0, column=0, sticky="w"
         )
@@ -79,7 +77,6 @@ class ClientGUI:
         self.auth_log.grid(row=6, column=0, columnspan=2, sticky="we")
         self.auth_log.insert(tk.END, "Ready\n")
 
-        # Chat tab
         ttk.Label(self.tab_chat, text="Chat").grid(row=0, column=0, sticky="w")
         self.chat_box = scrolledtext.ScrolledText(self.tab_chat, height=15)
         self.chat_box.grid(row=1, column=0, columnspan=2)
@@ -89,7 +86,6 @@ class ClientGUI:
         self.send_btn = ttk.Button(self.tab_chat, text="Send", command=self.on_send)
         self.send_btn.grid(row=2, column=1, sticky="e")
 
-        # disable chat until authenticated
         self.tabs.tab(1, state="disabled")
 
     def log(self, text):
@@ -169,9 +165,9 @@ class ClientGUI:
                         self.shared_key = base64.b64decode(shared_key_b64)
                         self.user_id = user_id
                         self.log("Authenticated & DH complete. Key obtained.")
-                        # enable chat tab and open ws
+
                         self.tabs.tab(1, state="normal")
-                        # start ws thread
+
                         t = threading.Thread(
                             target=self.start_ws_loop, args=(user_id,), daemon=True
                         )
@@ -184,7 +180,6 @@ class ClientGUI:
         asyncio.run(_auth())
 
     def start_ws_loop(self, user_id):
-        # create new event loop for background websocket
         self.ws_loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.ws_loop)
         self.ws_loop.run_until_complete(self.ws_main(user_id))
@@ -216,16 +211,14 @@ class ClientGUI:
         if not text or not self.shared_key or not self.ws:
             return
 
-        enc = aes_encrypt(text, self.shared_key)  # returns base64 string
+        enc = aes_encrypt(text, self.shared_key)
 
-        # send using existing ws via background loop
         async def _send():
             try:
                 await self.ws.send(enc)
             except Exception as e:
                 self.log(f"Send error: {e}")
 
-        # schedule coroutine on ws_loop
         asyncio.run_coroutine_threadsafe(_send(), self.ws_loop)
 
         self.append_chat("me", text)

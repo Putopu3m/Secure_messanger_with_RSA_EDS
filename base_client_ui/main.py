@@ -20,12 +20,11 @@ class AdminGUI:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("BaseClient Admin")
-        self.users = []  # online users
-        self.open_chats = {}  # username -> ChatWindow
+        self.users = []
+        self.open_chats = {}
 
         self.setup_ui()
 
-        # start ws listener in background thread
         self.ws = None
         self.loop = asyncio.new_event_loop()
         t = threading.Thread(target=self.start_ws_loop, daemon=True)
@@ -44,7 +43,6 @@ class AdminGUI:
         self.lb.grid(row=1, column=0, sticky="nsew")
         self.lb.bind("<Double-Button-1>", self.on_user_double)
 
-        # log box
         self.log = scrolledtext.ScrolledText(mainframe, height=8)
         self.log.grid(row=2, column=0, sticky="nsew")
         self.log.insert(tk.END, "Admin GUI started\n")
@@ -64,30 +62,6 @@ class AdminGUI:
         asyncio.set_event_loop(self.loop)
         self.loop.run_until_complete(self.ws_main())
 
-    # async def ws_main(self):
-    #     try:
-    #         async with websockets.connect(BASE_WS_ADMIN) as ws:
-    #             self.log_insert("Connected to base_client admin WS")
-    #             async for msg in ws:
-    #                 # msg is a JSON string (we used send_json from server)
-    #                 data = None
-    #                 try:
-    #                     data = json.loads(msg)
-    #                 except Exception:
-    #                     # sometimes server may send raw text; try parse as dict
-    #                     try:
-    #                         data = msg
-    #                     except:
-    #                         data = {"type":"raw","payload":msg}
-    #                 # handle messages/events
-    #                 await self.handle_event(data)
-    #     except Exception as e:
-    #         self.log_insert(f"Admin WS disconnected: {e}")
-    #         # try reconnect later
-    #         await asyncio.sleep(3)
-    #         await self.ws_main()
-
-    # внутри AdminGUI.ws_main (заменить соответствующую функцию на этот код)
     async def ws_main(self):
         try:
             async with websockets.connect(BASE_WS_ADMIN) as ws:
@@ -107,11 +81,7 @@ class AdminGUI:
             await self.ws_main()
 
     async def handle_event(self, data):
-        # server uses: {"type": "users_list", "users": [...]}
-        # or {"type":"user_joined", "username":"..."}
-        # or {"type":"message","from":"username", "text":"..."}
         if isinstance(data, str):
-            # try json
             try:
                 data = json.loads(data)
             except Exception as e:
@@ -134,7 +104,7 @@ class AdminGUI:
             fr = data.get("from")
             txt = data.get("text")
             self.log_insert(f"[{fr}] {txt}")
-            # if chat window open -> display
+
             if fr in self.open_chats:
                 self.open_chats[fr].append_message(fr, txt)
         else:
