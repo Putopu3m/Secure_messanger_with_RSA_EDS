@@ -22,6 +22,7 @@ class AdminGUI:
         self.root.title("BaseClient Admin")
         self.users = []
         self.open_chats = {}
+        self.chat_histories = {}
 
         self.setup_ui()
 
@@ -68,7 +69,6 @@ class AdminGUI:
                 self.ws = ws
                 self.log_insert("Connected to base_client admin WS")
                 async for raw in ws:
-                    # raw is text (JSON) -> parse
                     try:
                         data = json.loads(raw)
                     except Exception:
@@ -80,7 +80,7 @@ class AdminGUI:
             await asyncio.sleep(3)
             await self.ws_main()
 
-    async def handle_event(self, data):
+    async def handle_event(self, data: dict):
         if isinstance(data, str):
             try:
                 data = json.loads(data)
@@ -103,8 +103,9 @@ class AdminGUI:
         elif t == "message":
             fr = data.get("from")
             txt = data.get("text")
+            user = data.get("user", fr)
+            self.chat_histories.setdefault(user, []).append((fr, txt))
             self.log_insert(f"[{fr}] {txt}")
-
             if fr in self.open_chats:
                 self.open_chats[fr].append_message(fr, txt)
         else:
@@ -156,6 +157,12 @@ class ChatWindow:
         self.send_btn = ttk.Button(self.win, text="Send", command=self.on_send)
         self.send_btn.grid(row=1, column=1, sticky="e")
         self.shared_key = None
+        self.load_history()
+
+    def load_history(self):
+        history = self.parent.chat_histories.get(self.username, [])
+        for fr, txt in history:
+            self.append_message(fr, txt)
 
     def append_message(self, sender: str, text: str):
         def _append():
@@ -177,6 +184,7 @@ class ChatWindow:
                         json={"user_id": self.username, "text": text},
                     )
                     if r.status_code == 200:
+                        self.parent.chat_histories.setdefault(self.username, []).append(("admin", text))
                         self.append_message("admin", text)
                         self.entry.delete(0, tk.END)
                     else:

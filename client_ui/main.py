@@ -5,6 +5,7 @@ import sys
 import threading
 import tkinter as tk
 from tkinter import messagebox, scrolledtext, ttk
+import json
 
 import httpx
 import websockets
@@ -22,6 +23,7 @@ class ClientGUI:
         self.root.title("Client GUI")
         self.shared_key_b64 = None
         self.shared_key = None
+        self.user_id = None
         self.ws = None
         self.ws_loop = None
 
@@ -38,7 +40,7 @@ class ClientGUI:
         self.tabs.add(self.tab_chat, text="Chat")
         self.tabs.grid(row=0, column=0)
 
-        ttk.Label(self.tab_auth, text="User ID (numeric)").grid(
+        ttk.Label(self.tab_auth, text="Username").grid(
             row=0, column=0, sticky="w"
         )
         self.username_entry = ttk.Entry(self.tab_auth)
@@ -193,7 +195,10 @@ class ClientGUI:
                 async for msg in ws:
                     try:
                         plaintext = aes_decrypt(msg, self.shared_key)
-                        self.append_chat("admin", plaintext)
+                        data = json.loads(plaintext)
+                        sender = data.get("sender", "admin")
+                        text = data.get("text", plaintext)
+                        self.append_chat("me" if str(sender) == str(self.user_id) else sender, text)
                     except Exception as e:
                         self.log(f"decrypt error: {e}")
         except Exception as e:
