@@ -4,7 +4,7 @@ import os
 import sys
 import threading
 import tkinter as tk
-from tkinter import scrolledtext, ttk
+from tkinter import scrolledtext, ttk, messagebox, simpledialog
 
 import httpx
 import websockets
@@ -46,6 +46,41 @@ class AdminGUI:
         self.log = scrolledtext.ScrolledText(mainframe, height=8)
         self.log.grid(row=2, column=0, sticky="nsew")
         self.log.insert(tk.END, "Admin GUI started\n")
+
+        # Создание голосования
+        self.create_poll_btn = ttk.Button(mainframe, text="Create Poll", command=self.on_create_poll)
+        self.create_poll_btn.grid(row=0, column=1)
+        self.tally_poll_btn = ttk.Button(mainframe, text="Tally Selected", command=self.on_tally)
+        self.tally_poll_btn.grid(row=1, column=1)
+
+    def on_create_poll(self):
+        topic = simpledialog.askstring("Create poll", "Topic:")
+        if not topic: return
+        async def _create():
+            async with httpx.AsyncClient() as client:
+                r = await client.post(f"{BASE_HTTP}/polls/create", json={"topic": topic})
+                if r.status_code == 200:
+                    self.log_insert("Poll created")
+                else:
+                    self.log_insert(f"Create failed: {r.text}")
+        asyncio.run_coroutine_threadsafe(_create(), self.loop)
+
+    def on_tally(self):
+        # sel = self.lb.curselection()
+        # if not sel: 
+        #     messagebox.showerror("Error","Select user to know poll? (Or implement poll list UI)")
+        #     return
+        # For simplicity, ask poll_id
+        pid = simpledialog.askinteger("Tally", "Poll id:")
+        if not pid: return
+        async def _tally():
+            async with httpx.AsyncClient() as client:
+                r = await client.post(f"{BASE_HTTP}/polls/{pid}/tally")
+                if r.status_code == 200:
+                    self.log_insert(f"Tallied: {r.json()}")
+                else:
+                    self.log_insert(f"Tally failed: {r.text}")
+        asyncio.run_coroutine_threadsafe(_tally(), self.loop)
 
     def on_user_double(self, event=None):
         sel = self.lb.curselection()

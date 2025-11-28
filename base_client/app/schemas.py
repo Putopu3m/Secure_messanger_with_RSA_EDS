@@ -4,7 +4,7 @@ from pydantic import BaseModel
 class RegisterRequest(BaseModel):
     username: str
     password: str
-    telegram_username: str
+    telegram_username: str | None = None
 
 
 class RegisterResponse(BaseModel):
@@ -32,3 +32,13 @@ class DHInitiateRequest(BaseModel):
 class SendMessage(BaseModel):
     user_id: str
     text: str
+
+
+class CreatePollRequest(BaseModel):
+    topic: str
+
+
+class VoteRequest(BaseModel):
+    poll_id: int
+    user_id: int
+    fi: str  # decimal string

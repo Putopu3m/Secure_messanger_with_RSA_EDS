@@ -39,7 +39,7 @@ async def authenticate(login_request: client.app.schemas.LoginRequest):
     challenge_hash = session_data.pop(login_request.username)
 
     password_sha256 = security.hash_sha256(login_request.password)
-    code_sha256 = security.hash_sha256(login_request.tg_code)
+    code_sha256 = security.hash_sha256(login_request.tg_code) if login_request.tg_code else ""
 
     response = security.hash_sha256((password_sha256 + challenge_hash + code_sha256))
 

@@ -14,6 +14,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from security.security import aes_decrypt, aes_encrypt
 
 CLIENT_SERVER = "http://localhost:8001"
+BASE_SERVER = "http://localhost:8000"
 BASE_WS_USER = "ws://localhost:8000/ws"
 
 
@@ -88,6 +89,21 @@ class ClientGUI:
 
         self.tabs.tab(1, state="disabled")
 
+        # Голосование
+        self.tab_vote = ttk.Frame(self.tabs)
+        self.tabs.add(self.tab_vote, text="Voting")
+        self.tabs.tab(2, state="disabled")  # по умолчанию скрыт
+        # элементы внутри
+        self.poll_label = ttk.Label(self.tab_vote, text="No poll")
+        self.poll_label.grid(row=0,column=0,sticky="w")
+        self.vote_var = tk.StringVar(value="")
+        ttk.Button(self.tab_vote, text="За", command=lambda: self.cast_vote(2)).grid(row=1,column=0)
+        ttk.Button(self.tab_vote, text="Против", command=lambda: self.cast_vote(3)).grid(row=1,column=1)
+        ttk.Button(self.tab_vote, text="Воздержался", command=lambda: self.cast_vote(1)).grid(row=1,column=2)
+        self.vote_status = ttk.Label(self.tab_vote, text="")
+        self.vote_status.grid(row=2,column=0,columnspan=3,sticky="w")
+        self.has_challenge = False
+
     def log(self, text):
         def _insert():
             self.auth_log.insert(tk.END, text + "\n")
@@ -99,8 +115,8 @@ class ClientGUI:
         user_id = self.username_entry.get().strip()
         password = self.password_entry.get().strip()
         tg_un = self.tg_username_entry.get().strip()
-        if not user_id or not password or not tg_un:
-            messagebox.showerror("Error", "Fill user_id/password/tg")
+        if not user_id or not password:
+            messagebox.showerror("Error", "Fill user_id/password")
             return
 
         async def _reg():
@@ -110,7 +126,7 @@ class ClientGUI:
                     json={
                         "username": user_id,
                         "password": password,
-                        "telegram_username": tg_un,
+                        "telegram_username": tg_un if tg_un else None,
                     },
                 )
                 if r.status_code == 200:
@@ -121,17 +137,18 @@ class ClientGUI:
         asyncio.run(_reg())
 
     def on_get_code(self):
-        user_id = self.username_entry.get().strip()
-        if not user_id:
+        username = self.username_entry.get().strip()
+        if not username:
             messagebox.showerror("Error", "Enter user id")
             return
 
         async def _get():
             async with httpx.AsyncClient() as client:
                 r = await client.post(
-                    f"{CLIENT_SERVER}/create_challenge", json={"username": user_id}
+                    f"{CLIENT_SERVER}/create_challenge", json={"username": username}
                 )
                 if r.status_code == 200:
+                    self.has_challenge = True
                     self.log("Challenge requested; check Telegram")
                 else:
                     self.log(f"Challenge failed: {r.text}")
@@ -142,18 +159,27 @@ class ClientGUI:
         username = self.username_entry.get().strip()
         password = self.password_entry.get().strip()
         tg_code = self.tg_code_entry.get().strip()
-        if not username or not password or not tg_code:
-            messagebox.showerror("Error", "Fill fields")
+        if not username or not password:
+            messagebox.showerror("Error", "Fields username and password required")
             return
 
         async def _auth():
+            if not self.has_challenge:
+                async with httpx.AsyncClient() as client:
+                    r = await client.post(
+                        f"{CLIENT_SERVER}/create_challenge", json={"username": username}
+                    )
+                    if r.status_code == 200:
+                        self.log("Challenge requested without Telegram code")
+                    else:
+                        self.log(f"Challenge failed: {r.text}")
             async with httpx.AsyncClient() as client:
                 r = await client.post(
                     f"{CLIENT_SERVER}/authenticate",
                     json={
                         "username": username,
                         "password": password,
-                        "tg_code": tg_code,
+                        "tg_code": tg_code if tg_code else "",
                     },
                 )
                 if r.status_code == 200:
@@ -194,6 +220,24 @@ class ClientGUI:
                     try:
                         plaintext = aes_decrypt(msg, self.shared_key)
                         data = json.loads(plaintext)
+
+                        if data.get("type") == "poll":
+                            # enable voting tab and show topic
+                            self.current_poll = data
+                            def _show():
+                                self.poll_label.config(text=f"{data.get('topic')} (poll_id={data.get('poll_id')})")
+                                self.tabs.tab(2, state="normal")
+                                self.tabs.select(2)
+                            self.root.after(0, _show)
+                            continue
+                        elif data.get("type") == "poll_result":
+                            # show results to user
+                            # decrypted data already used
+                            res = data
+                            # optional: popup
+                            self.root.after(0, lambda: messagebox.showinfo("Poll result", f"For: {res['for']}, Against: {res['against']}, Abstain: {res['abstain']}"))
+                            continue
+
                         sender = data.get("sender", "admin")
                         text = data.get("text", plaintext)
                         self.append_chat(
@@ -228,6 +272,33 @@ class ClientGUI:
 
         self.append_chat("me", text)
         self.msg_entry.delete(0, tk.END)
+
+
+    def rand_prime_ge_5(self, bits=16):
+        # simple prime generation. For real use use sympy.randprime or Crypto.Util.number.getPrime
+        from Crypto.Util import number
+        while True:
+            p = number.getPrime(bits)
+            if p >= 5:
+                return p
+
+    async def _send_vote_async(self, poll_id, user_id, fi_str):
+        async with httpx.AsyncClient() as client:
+            r = await client.post(f"{BASE_SERVER}/vote", json={"poll_id": poll_id, "user_id": user_id, "fi": fi_str})
+            return r
+
+    def cast_vote(self, bi: int):
+        if not getattr(self, "current_poll", None):
+            messagebox.showerror("Error","No active poll")
+            return
+        poll = self.current_poll
+        m = int(poll["m"]); e = int(poll["e"])
+        qi = self.rand_prime_ge_5(bits=64)  # decent sized prime
+        ti = bi * qi
+        fi = pow(ti, e, m)
+        # send fi as decimal string
+        asyncio.run(self._send_vote_async(poll_id=poll["poll_id"], user_id=self.user_id, fi_str=str(fi)))
+        self.vote_status.config(text="Voted")
 
     def run(self):
         self.root.mainloop()

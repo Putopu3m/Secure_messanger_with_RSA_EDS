@@ -3,6 +3,7 @@ import hashlib
 import os
 import secrets
 from datetime import datetime, timedelta, timezone
+import base_client.app.api.router_api as router_api
 
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
@@ -154,3 +155,26 @@ def aes_decrypt(enc_b64: str, key) -> str:
     cipher = AES.new(kb, AES.MODE_CBC, iv)
     pt = unpad(cipher.decrypt(ct), BLOCK_SIZE)
     return pt.decode("utf-8")
+
+
+_center_rsa = None  # {"m":..., "e":..., "d":...}
+
+def init_center_rsa_if_absent(keysize=2048):
+    global _center_rsa
+    if _center_rsa is None:
+        from Crypto.PublicKey import RSA
+        key = RSA.generate(keysize)
+        pub = key.publickey()
+        m = pub.n
+        e = pub.e
+        d = key.d
+        _center_rsa = {"m": m, "e": e, "d": d}
+    return _center_rsa
+
+def get_center_public_rsa():
+    k = init_center_rsa_if_absent()
+    return {"m": k["m"], "e": k["e"]}
+
+def get_center_private_rsa():
+    k = init_center_rsa_if_absent()
+    return {"m": k["m"], "d": k["d"]}

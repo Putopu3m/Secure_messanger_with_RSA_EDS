@@ -1,4 +1,4 @@
-from sqlalchemy import BigInteger, Column, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import BigInteger, Column, DateTime, ForeignKey, Integer, String, func, Text
 from sqlalchemy.orm import relationship
 
 from .db import Base
@@ -40,4 +40,20 @@ class Message(Base):
     user_id = Column(Integer, index=True)
     sender = Column(String, index=True)
     content = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class Poll(Base):
+    __tablename__ = "polls"
+    id = Column(Integer, primary_key=True, index=True)
+    topic = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    is_open = Column(Integer, default=1)  # 1=open, 0=closed
+
+class VoteSubmission(Base):
+    __tablename__ = "vote_submissions"
+    id = Column(Integer, primary_key=True, index=True)
+    poll_id = Column(Integer, ForeignKey("polls.id"), index=True)
+    user_id = Column(Integer, index=True)
+    fi = Column(Text, nullable=False)  # store as decimal string
     created_at = Column(DateTime(timezone=True), server_default=func.now())
